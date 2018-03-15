@@ -1,0 +1,104 @@
+---
+title: "Project 1"
+author: "Rabiya Ali"
+date: "2018 M03 15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+activity <- read.csv("data/activity.csv", stringsAsFactors=FALSE)
+str(activity)
+summary(activity)
+library(lubridate)
+
+activity$date <- ymd(activity$date)
+
+str(activity)
+require(dplyr)
+total_day <- activity %>% group_by(date) %>%summarise(total_steps=sum(steps,na.rm=TRUE),na=mean(is.na(steps))) %>% print
+
+```
+
+## Plots
+
+```{r pressure, echo=FALSE}
+barplot(height = total_day$total_steps,names.arg=total_day$date,cex.names=0.68,las=3,col="orange")
+abline(h=median(total_day$total_steps), lty=2,lwd=3, col="black")
+abline(h=mean(total_day$total_steps), lty=2,lwd=3, col="red")
+text(x = 0,y=median(total_day$total_steps),pos=3,labels = "median")
+text(x = 0,y=mean(total_day$total_steps),pos=1,labels = "mean",col="red")
+```
+
+```{r}
+total_day <- filter(total_day, na < 1)
+hist(total_day$total_steps,col="orange",breaks=20,main="Total steps per day",xlab="Steps per day")
+abline(v=median(total_day$total_steps),lty=3, lwd=2, col="black")
+legend(legend="median","topright",lty=3,lwd=2,bty = "n")
+```
+
+```{r}
+mean_steps <- mean(total_day$total_steps,na.rm=TRUE)
+median_steps <- median(total_day$total_steps,na.rm=TRUE)
+
+library(dplyr,quietly = TRUE)
+daily_patterns <- activity %>% group_by(interval) %>% summarise(average=mean(steps,na.rm=TRUE))
+```
+
+```{r}
+plot(x = 1:nrow(daily_patterns),y = daily_patterns$average,type = "l",
+     col = "red", xaxt = "n",xlab="Intervals", 
+     ylab = "Average for given interval across all days")
+axis(1,labels=daily_patterns$interval[seq(1,288,12)],
+     at = seq_along(daily_patterns$interval)[seq(1,288,12)])
+     
+max_numb_steps_interval <- filter(daily_patterns,average==max(average))
+
+na_number <- sum(is.na(activity$steps))
+na_number
+percentage_na <- mean(is.na(activity$steps))
+percentage_na
+
+without_NAs <- numeric(nrow(activity))
+for (i in 1:nrow(activity))
+{
+        if (is.na(activity[i,"steps"])==TRUE)
+            {
+                    without_NAs[i]<-filter(daily_patterns,interval==activity[i,"interval"]) %>% select(average)
+            } 
+        else
+            {
+                    without_NAs[i]<-activity[i,"steps"]
+            }
+                    
+}
+activity_without_NAs<-mutate(activity,steps_no_NAs=without_NAs)
+head(activity_without_NAs)
+
+check <- filter(activity_without_NAs,!is.na(steps)) %>% mutate(ok = (steps==steps_no_NAs))
+mean(check$ok)
+total_day_noNAs <- activity_without_NAs %>% mutate(steps_no_NAs=as.numeric(steps_no_NAs)) %>% group_by(date) %>% summarise(total_steps=sum(steps_no_NAs))
+hist(total_day_noNAs$total_steps,col="blue",breaks=20,main="Total steps per day",xlab="Steps per day")
+abline(v=median(total_day$total_steps),lty=3, lwd=2, col="black")
+legend(legend="median","topright",lty=3,lwd=2,bty = "n")
+summary(total_day_noNAs$total_steps)
+
+library(lubridate)
+is_weekday <-function(date){
+        if(wday(date)%in%c(1,7)) result<-"weekend"
+        else
+                result<-"weekday"
+        result
+}
+
+activity_without_NAs <- mutate(activity_without_NAs,date=ymd(date)) %>% mutate(day=sapply(date,is_weekday))
+
+table(activity_without_NAs$day)
+library(ggplot2)
+daily_patterns <- activity_without_NAs %>% mutate(day=factor(day,levels=c("weekend","weekday")),steps_no_NAs=as.numeric(steps_no_NAs)) %>% group_by(interval,day) %>% summarise(average=mean(steps_no_NAs))
+qplot(interval,average,data=daily_patterns,geom="line",facets=day~.)
+```
+
